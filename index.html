@@ -7,8 +7,8 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #121212; /* Dark mode background */
-            color: #e0e0e0; /* Light text color */
+            background-color: #121212;
+            color: #e0e0e0;
             text-align: center;
             margin-top: 50px;
         }
@@ -25,130 +25,74 @@
             color: #ffffff;
         }
         #rollButton.ready {
-            background-color: #4caf50; /* Green for auto-press */
-        }
-        #rollButton.cooldown {
-            background-color: #f44336; /* Red during cooldown */
+            background-color: #4caf50; /* Green for ready */
         }
         #rollButton {
             background-color: #555555; /* Default gray */
         }
-        #resetHighScoreButton {
-            background-color: #3f51b5; /* Blue for reset */
+        #resetScoresButton {
+            background-color: #ff9800; /* Orange for reset all */
         }
-        .message, .high-score, .legacy-scores {
+        .message, .high-score, .roll-scores {
             margin-top: 20px;
             font-size: 18px;
+        }
+        .probability {
+            color: #3f51b5; /* Blue probability text */
+        }
+        .position {
+            color: #3f51b5; /* Blue position text */
         }
     </style>
 </head>
 <body>
 
     <h1>Dice Roll Game</h1>
-    <button id="rollButton">Roll the Dice</button>
-    <button id="resetHighScoreButton">Reset High Score</button>
+    <button id="rollButton" class="ready">Roll the Dice</button>
+    <button id="resetScoresButton">Reset All Scores</button>
 
     <div id="message" class="message"></div>
     <div id="probability" class="message"></div>
-    <div id="highScoreMessage" class="high-score"></div>
-    <div id="timeElapsedMessage" class="high-score"></div>
-    <h2>Legacy Scores</h2>
-    <div id="legacyScores" class="legacy-scores"></div>
+
+    <h2>Roll Scores</h2>
+    <div id="rollScores" class="roll-scores"></div>
 
     <script>
-        // Load high score and legacy scores from localStorage
-        const loadScores = () => {
-            const highScore = localStorage.getItem('highScore');
-            const highScoreTime = localStorage.getItem('highScoreTime');
-            const legacyScores = JSON.parse(localStorage.getItem('legacyScores') || '[]');
-            return {
-                highScore: highScore ? parseInt(highScore, 10) : 0,
-                highScoreTime: highScoreTime ? new Date(parseInt(highScoreTime, 10)) : null,
-                legacyScores
-            };
-        };
+        const loadScores = () => JSON.parse(localStorage.getItem('rollScores') || '[]').map(score => ({
+            ...score,
+            timestamp: new Date(score.timestamp),
+            probability: score.probability || 0
+        }));
 
-        // Save high score to localStorage
-        const saveHighScore = (score, timestamp) => {
-            localStorage.setItem('highScore', score);
-            localStorage.setItem('highScoreTime', timestamp.getTime());
-        };
+        const saveScores = (scores) => localStorage.setItem('rollScores', JSON.stringify(scores));
 
-        // Save legacy scores to localStorage
-        const saveLegacyScores = (legacyScores) => {
-            localStorage.setItem('legacyScores', JSON.stringify(legacyScores));
-        };
-
-        // Calculate elapsed time in days, hours, minutes, and seconds
         const getTimeElapsed = (startTime) => {
             const now = new Date();
             const elapsedMs = now - startTime;
-
             const seconds = Math.floor(elapsedMs / 1000);
             const days = Math.floor(seconds / (3600 * 24));
             const hours = Math.floor((seconds % (3600 * 24)) / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
             const secs = seconds % 60;
-
             return `${days}d ${hours}h ${minutes}m ${secs}s`;
         };
 
-        // Update the legacy scores display
-        const updateLegacyScoresDisplay = (legacyScores) => {
-            const legacyScoresContainer = document.getElementById('legacyScores');
-            legacyScoresContainer.innerHTML = legacyScores.map(score => 
+        const updateRollScoresDisplay = (rollScores) => {
+            document.getElementById('rollScores').innerHTML = rollScores.slice(0, 25).map((score) => 
                 `<div>
-                    Legacy Score: ${score.score} spins (${score.odds} odds)<br>
-                    Achieved ${getTimeElapsed(new Date(score.timestamp))} ago
+                    Score: ${score.score} spins<br>
+                    <span class="probability">Probability: ${(score.probability * 100).toFixed(6)}%</span><br>
+                    Achieved ${getTimeElapsed(score.timestamp)} ago
                 </div>`
             ).join('');
         };
 
-        // Initialize game data
         const initGame = () => {
-            const { highScore, highScoreTime, legacyScores } = loadScores();
-            let highScoreOdds = 'N/A';
-            if (highScore > 0) {
-                const odds = 1.0 - Math.pow(100000.0 / 100001.0, highScore);
-                highScoreOdds = (odds * 100).toFixed(6) + '%';
-            }
-            document.getElementById('highScoreMessage').textContent = 
-                highScore === 0 ? 'No high score yet.' : `High Score: ${highScore} spins (${highScoreOdds} odds)`;
-            if (highScoreTime) {
-                document.getElementById('timeElapsedMessage').textContent = 
-                    `Time since high score: ${getTimeElapsed(highScoreTime)}`;
-            }
-            updateLegacyScoresDisplay(legacyScores);
+            const rollScores = loadScores();
+            updateRollScoresDisplay(rollScores);
         };
 
-        // Roll button state variables
-        let canRoll = true;
-        let readyToAutoPress = false;
-
-        const startCooldown = () => {
-            canRoll = false;
-            document.getElementById('rollButton').classList.add('cooldown');
-
-            setTimeout(() => {
-                canRoll = true;
-                document.getElementById('rollButton').classList.remove('cooldown');
-                if (readyToAutoPress) {
-                    document.getElementById('rollButton').click();
-                    readyToAutoPress = false;
-                    document.getElementById('rollButton').classList.remove('ready');
-                }
-            }, 1000);
-        };
-
-        // Handle dice roll
         document.getElementById('rollButton').addEventListener('click', function() {
-            if (!canRoll) {
-                readyToAutoPress = true;
-                document.getElementById('rollButton').classList.add('ready');
-                document.getElementById('rollButton').classList.remove('cooldown');
-                return;
-            }
-
             let count = 0;
             let roll;
             do {
@@ -157,37 +101,23 @@
             } while (roll !== 1);
 
             const probability = 1.0 - Math.pow(100000.0 / 100001.0, count);
-            const { highScore, highScoreTime, legacyScores } = loadScores();
+            const rollScores = loadScores();
+            const newEntry = { score: count, timestamp: new Date(), probability };
+            rollScores.push(newEntry);
+            rollScores.sort((a, b) => b.score - a.score);
+            saveScores(rollScores);
 
+            const position = rollScores.findIndex(s => s === newEntry) + 1;
             document.getElementById('message').textContent = `It took ${count} spins to roll a 1.`;
-            document.getElementById('probability').textContent = `The probability of rolling a 1 in ${count} spins or fewer is ${(probability * 100).toFixed(6)}%.`;
-
-            if (count > highScore) {
-                const now = new Date();
-                saveHighScore(count, now);
-                const newOdds = 1.0 - Math.pow(100000.0 / 100001.0, count);
-                document.getElementById('highScoreMessage').textContent = `New High Score: ${count} spins (${(newOdds * 100).toFixed(6)}% odds)`;
-                document.getElementById('timeElapsedMessage').textContent = `Time since high score: ${getTimeElapsed(now)}`;
-            } else if (highScoreTime) {
-                document.getElementById('timeElapsedMessage').textContent = `Time since high score: ${getTimeElapsed(highScoreTime)}`;
-            }
-
-            startCooldown();
+            document.getElementById('probability').innerHTML = `The probability of rolling a 1 in ${count} spins or fewer is ${(probability * 100).toFixed(6)}%. <span class="position">(${position}/${rollScores.length})</span>`;
+            updateRollScoresDisplay(rollScores);
         });
 
-        // Handle reset high score
-        document.getElementById('resetHighScoreButton').addEventListener('click', function() {
-            const { highScore, highScoreTime, legacyScores } = loadScores();
-            if (highScore > 0 && highScoreTime) {
-                const odds = 1.0 - Math.pow(100000.0 / 100001.0, highScore);
-                legacyScores.push({ score: highScore, odds: (odds * 100).toFixed(6) + '%', timestamp: highScoreTime.getTime() });
-                saveLegacyScores(legacyScores);
-            }
-            saveHighScore(0, new Date());
-            initGame();
+        document.getElementById('resetScoresButton').addEventListener('click', function() {
+            localStorage.removeItem('rollScores');
+            updateRollScoresDisplay([]);
         });
 
-        // Initialize the game
         initGame();
     </script>
 
