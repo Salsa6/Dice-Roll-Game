@@ -43,6 +43,16 @@
         .position {
             color: #3f51b5; /* Blue position text */
         }
+        .pagination {
+            margin-top: 20px;
+        }
+        .pagination button {
+            background-color: #555555;
+            margin: 0 5px;
+        }
+        .pagination .active {
+            background-color: #4caf50;
+        }
     </style>
 </head>
 <body>
@@ -56,8 +66,11 @@
 
     <h2>Roll Scores</h2>
     <div id="rollScores" class="roll-scores"></div>
+    <div class="pagination" id="pagination"></div>
 
     <script>
+        const SCORES_PER_PAGE = 25;
+
         const loadScores = () => JSON.parse(localStorage.getItem('rollScores') || '[]').map(score => ({
             ...score,
             timestamp: new Date(score.timestamp),
@@ -77,14 +90,56 @@
             return `${days}d ${hours}h ${minutes}m ${secs}s`;
         };
 
-        const updateRollScoresDisplay = (rollScores) => {
-            document.getElementById('rollScores').innerHTML = rollScores.slice(0, 25).map((score) => 
+        const updateRollScoresDisplay = (rollScores, page = 1) => {
+            const rollScoresContainer = document.getElementById('rollScores');
+            const startIndex = (page - 1) * SCORES_PER_PAGE;
+            const scoresToDisplay = rollScores.slice(startIndex, startIndex + SCORES_PER_PAGE);
+
+            rollScoresContainer.innerHTML = scoresToDisplay.map((score) => 
                 `<div>
                     Score: ${score.score} spins<br>
                     <span class="probability">Probability: ${(score.probability * 100).toFixed(6)}%</span><br>
                     Achieved ${getTimeElapsed(score.timestamp)} ago
                 </div>`
             ).join('');
+
+            updatePagination(rollScores, page);
+        };
+
+        const updatePagination = (rollScores, currentPage) => {
+            const paginationContainer = document.getElementById('pagination');
+            const totalPages = Math.ceil(rollScores.length / SCORES_PER_PAGE);
+
+            let paginationHTML = '';
+
+            if (currentPage > 1) {
+                paginationHTML += `<button onclick="changePage(1)">First</button>`;
+                paginationHTML += `<button onclick="changePage(${currentPage - 1})">&laquo;</button>`;
+            }
+
+            const visiblePages = Math.min(5, totalPages);
+            let startPage = Math.max(1, currentPage - Math.floor(visiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + visiblePages - 1);
+
+            if (endPage - startPage < visiblePages - 1) {
+                startPage = Math.max(1, endPage - visiblePages + 1);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHTML += `<button class="${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">${i}</button>`;
+            }
+
+            if (currentPage < totalPages) {
+                paginationHTML += `<button onclick="changePage(${currentPage + 1})">&raquo;</button>`;
+                paginationHTML += `<button onclick="changePage(${totalPages})">Last</button>`;
+            }
+
+            paginationContainer.innerHTML = paginationHTML;
+        };
+
+        const changePage = (page) => {
+            const rollScores = loadScores();
+            updateRollScoresDisplay(rollScores, page);
         };
 
         const initGame = () => {
